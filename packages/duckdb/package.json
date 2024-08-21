@@ -30,7 +30,10 @@
     "prepublishOnly": "npm run test && npm run lint"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "duckdb": "^1.0.0",
+    "https": "^1.0.0",
+    "node-jose": "^2.2.0",
     "ws": "^8.18.0"
   }
 }

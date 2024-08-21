@@ -4,19 +4,24 @@ import url from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Cache, cacheKey } from './Cache.js';
 import { createBundle, loadBundle } from './load/bundle.js';
+import authorization, { buildVerifier } from './authentication.js';
 
 const CACHE_DIR = '.mosaic/cache';
 const BUNDLE_DIR = '.mosaic/bundle';
 
-export function dataServer(db, {
+BigInt.prototype.toJSON = function() { return this.toString() }
+
+
+export async function dataServer(db, {
   cache = true,
   rest = true,
   socket = true,
   port = 3000
 } = {}) {
   const queryCache = cache ? new Cache({ dir: CACHE_DIR }) : null;
+  const verifier = await buildVerifier();
   const handleQuery = queryHandler(db, queryCache);
-  const app = createHTTPServer(handleQuery, rest);
+  const app = createHTTPServer(handleQuery, rest, verifier);
   if (socket) createSocketServer(app, handleQuery);
 
   app.listen(port);
@@ -25,9 +30,14 @@ export function dataServer(db, {
   if (socket) console.log(`  ws://localhost:${port}/`);
 }
 
-function createHTTPServer(handleQuery, rest) {
-  return http.createServer((req, resp) => {
+function createHTTPServer(handleQuery, rest, verifier) {
+  return http.createServer(async (req, resp) => {
     const res = httpResponse(resp);
+    const isAuthorized = await authorization(req, res, verifier);
+    if (!isAuthorized) {
+      res.error(res.errorMessage, res.statusCode);
+      return;
+    }
     if (!rest) {
       res.done();
       return;
