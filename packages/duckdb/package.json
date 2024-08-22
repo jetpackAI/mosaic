@@ -26,6 +26,7 @@
   "scripts": {
     "lint": "eslint src test",
     "server": "node bin/run-server.js",
+    "dev": "nodemon bin/run-server.js",
     "test": "mocha 'test/**/*-test.js'",
     "prepublishOnly": "npm run test && npm run lint"
   },
@@ -34,6 +35,10 @@
     "duckdb": "^1.0.0",
     "https": "^1.0.0",
     "node-jose": "^2.2.0",
+    "uuid": "^10.0.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
   }
 }

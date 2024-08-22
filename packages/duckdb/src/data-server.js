@@ -1,6 +1,8 @@
 import http from 'node:http';
 import path from 'node:path';
 import url from 'node:url';
+import { v4 as uuidv4 } from 'uuid';
+
 import { WebSocketServer } from 'ws';
 import { Cache, cacheKey } from './Cache.js';
 import { createBundle, loadBundle } from './load/bundle.js';
@@ -21,8 +23,9 @@ export async function dataServer(db, {
   const queryCache = cache ? new Cache({ dir: CACHE_DIR }) : null;
   const verifier = await buildVerifier();
   const handleQuery = queryHandler(db, queryCache);
-  const app = createHTTPServer(handleQuery, rest, verifier);
-  if (socket) createSocketServer(app, handleQuery);
+  const app = createHTTPServer(handleQuery, rest, verifier,db);
+  if (socket) createSocketServer(app, handleQuery, db);
+  db.exec('CREATE TABLE TICKETS (ID STRING PRIMARY KEY, USED BOOLEAN);');
 
   app.listen(port);
   console.log(`Data server running on port ${port}`);
@@ -30,7 +33,7 @@ export async function dataServer(db, {
   if (socket) console.log(`  ws://localhost:${port}/`);
 }
 
-function createHTTPServer(handleQuery, rest, verifier) {
+function createHTTPServer(handleQuery, rest, verifier, db) {
   return http.createServer(async (req, resp) => {
     const res = httpResponse(resp);
     const isAuthorized = await authorization(req, res, verifier);
@@ -48,6 +51,24 @@ function createHTTPServer(handleQuery, rest, verifier) {
     resp.setHeader('Access-Control-Allow-Methods', 'OPTIONS, POST, GET');
     resp.setHeader('Access-Control-Allow-Headers', '*');
     resp.setHeader('Access-Control-Max-Age', 2592000);
+
+    const path = url.parse(req.url, true).pathname;
+    console.log("path")
+    console.log(path)
+    if (req.method === 'GET' && path === '/login') {
+      console.log("coucou")
+      const ticketId = uuidv4();
+      const query = `INSERT INTO TICKETS VALUES ('${ticketId}', False);`;
+      const results = await db.exec(query)
+      console.log("results")
+      console.log(results)
+      const results2 = await db.query(`SELECT * FROM TICKETS;`)
+      console.log("results2")
+      console.log(results2)
+      res.json({ ticketId });
+      // res.json(await retrieve(query, sql => db.query(sql)));
+      return;
+    }
 
     switch (req.method) {
       case 'OPTIONS':
@@ -69,11 +90,35 @@ function createHTTPServer(handleQuery, rest, verifier) {
   });
 }
 
-function createSocketServer(server, handleQuery) {
+async function socketAuthorize(protocol, db) {
+  if (!protocol) return false;
+  const findTicketQuery = `SELECT * FROM TICKETS WHERE ID = '${protocol}';`;
+  const ticketsResults = await db.query(findTicketQuery);
+  if (ticketsResults.length === 0) {
+    return false;
+  }
+  if (ticketsResults[0].USED) {
+    return false;
+  }
+  if (!ticketsResults[0].USED) {
+    const updateTicketQuery = `UPDATE TICKETS SET USED = True WHERE ID = '${protocol}';`;
+    await db.exec(updateTicketQuery);
+    return true;
+  }
+  return false;
+}
+
+function createSocketServer(server, handleQuery, db) {
   const wss = new WebSocketServer({ server });
 
-  wss.on('connection', socket => {
+  wss.on('connection', async (socket, request) => {
     const res = socketResponse(socket);
+    const protocol = request.headers['sec-websocket-protocol'];
+    const isAuthorized = await socketAuthorize(protocol, db);
+    if (!isAuthorized) {
+      res.error('Unauthorized', 401);
+      return;
+    }
     socket.on('message', data => handleQuery(res, data));
   });
 }
