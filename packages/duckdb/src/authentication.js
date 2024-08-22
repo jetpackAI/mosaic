@@ -9,6 +9,7 @@ const { AWS_COGNITO_POOL_ID, AWS_COGNITO_REGION, AWS_COGNITO_APP_CLIENT_ID } =
 
 export async function buildVerifier() {
     const verifier = await new Promise((resolve, reject) => {
+        const keysUrl = `https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_POOL_ID}/.well-known/jwks.json`;
         return https.get(keysUrl, (response) => {
             if (response.statusCode === 200) {
                 response.on("data", (body) => {
