@@ -53,20 +53,11 @@ function createHTTPServer(handleQuery, rest, verifier, db) {
     resp.setHeader('Access-Control-Max-Age', 2592000);
 
     const path = url.parse(req.url, true).pathname;
-    console.log("path")
-    console.log(path)
     if (req.method === 'GET' && path === '/login') {
-      console.log("coucou")
       const ticketId = uuidv4();
       const query = `INSERT INTO TICKETS VALUES ('${ticketId}', False);`;
-      const results = await db.exec(query)
-      console.log("results")
-      console.log(results)
-      const results2 = await db.query(`SELECT * FROM TICKETS;`)
-      console.log("results2")
-      console.log(results2)
+      await db.exec(query)
       res.json({ ticketId });
-      // res.json(await retrieve(query, sql => db.query(sql)));
       return;
     }
 
